@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,6 +12,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       theme: ThemeData(
         // This is the theme of your application.
@@ -31,8 +33,37 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Asset Tracker'),
     );
+  }
+}
+
+Future<bool> handleLocationPermission() async {
+  final permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    final requestResult = await Geolocator.requestPermission();
+    if (requestResult == LocationPermission.deniedForever) {
+      // Permission is permanently denied
+      return false;
+    }
+    return requestResult != LocationPermission.denied;
+  }
+  return permission != LocationPermission.denied;
+}
+
+Future<Position?> getCurrentLocation() async {
+  bool hasPermission = await handleLocationPermission();
+  if (!hasPermission) return null;
+
+  try {
+    Position position = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high));
+    debugPrint(position.toString());
+    return position;
+  } catch (e) {
+    debugPrint("Error getting location: $e");
+    return null;
   }
 }
 
@@ -64,6 +95,7 @@ class _MyHomePageState extends State<MyHomePage> {
       // so that the display can reflect the updated values. If we changed
       // _counter without calling setState(), then the build method would not be
       // called again, and so nothing would appear to happen.
+      getCurrentLocation();
       _counter++;
     });
   }
