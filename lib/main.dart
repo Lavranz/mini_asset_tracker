@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 void main() {
   runApp(const MyApp());
@@ -8,30 +9,18 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'Asset Tracker',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
+        textTheme: const TextTheme(
+          titleMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          bodyLarge: TextStyle(fontSize: 16),
+        ),
       ),
       home: const MyHomePage(title: 'Asset Tracker'),
     );
@@ -43,7 +32,6 @@ Future<bool> handleLocationPermission() async {
   if (permission == LocationPermission.denied) {
     final requestResult = await Geolocator.requestPermission();
     if (requestResult == LocationPermission.deniedForever) {
-      // Permission is permanently denied
       return false;
     }
     return requestResult != LocationPermission.denied;
@@ -57,8 +45,8 @@ Future<Position?> getCurrentLocation() async {
 
   try {
     Position position = await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.high));
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
     debugPrint(position.toString());
     return position;
   } catch (e) {
@@ -69,16 +57,6 @@ Future<Position?> getCurrentLocation() async {
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -86,72 +64,139 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  Position? _currentPosition;
+  String? _scannedValue;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _getLocation(); // Fetch location automatically when the widget loads
+  }
+
+  Future<void> _getLocation() async {
+    Position? position = await getCurrentLocation();
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      getCurrentLocation();
-      _counter++;
+      _currentPosition = position;
     });
+
+    if (position == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location permission denied or unavailable')),
+      );
+    }
+  }
+
+  Future<void> _scanCode() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text("Scan Barcode/QR")),
+          body: MobileScanner(
+            onDetect: (barcodeCapture) {
+              final List<Barcode> barcodes = barcodeCapture.barcodes;
+              if (barcodes.isNotEmpty) {
+                setState(() {
+                  _scannedValue = barcodes.first.rawValue ?? "Unknown";
+                });
+                Navigator.pop(context); // Close scanner after detection
+              }
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Card(
+            elevation: 8,
+            shadowColor: Colors.black45,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_currentPosition != null) ...[
+                    const Icon(Icons.location_on,
+                        size: 50, color: Colors.deepPurple),
+                    const SizedBox(height: 15),
+                    Text(
+                      'Latitude: ${_currentPosition!.latitude}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(
+                      'Longitude: ${_currentPosition!.longitude}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 15),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Coordinates fetched successfully!',
+                        style: TextStyle(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ] else ...[
+                    const Icon(Icons.location_off,
+                        size: 50, color: Colors.grey),
+                    const SizedBox(height: 15),
+                    const Text('Location not available'),
+                  ],
+                  const SizedBox(height: 20),
+                  if (_scannedValue != null)
+                    Column(
+                      children: [
+                        const Icon(Icons.qr_code,
+                            size: 50, color: Colors.deepPurple),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Scanned Value: $_scannedValue',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            onPressed: _getLocation,
+            label: const Text('Get Location'),
+            icon: const Icon(Icons.my_location),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            onPressed: _scanCode,
+            label: const Text('Scan Code'),
+            icon: const Icon(Icons.qr_code_scanner),
+          ),
+        ],
+      ),
     );
   }
 }
