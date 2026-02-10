@@ -21,19 +21,40 @@ class BarcodeService {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(title: const Text("Scan Barcode/QR Code")),
-          body: MobileScanner(
-            onDetect: (barcodeCapture) {
-              final Barcode barcode = barcodeCapture.barcodes.first;
-              result = barcode.rawValue;
-              Navigator.of(context)
-                  .pop(result); // close scanner and return value
-            },
+          body: Stack(
+            children: [
+              // Camera feed
+              MobileScanner(
+                onDetect: (barcodeCapture) {
+                  final Barcode barcode = barcodeCapture.barcodes.first;
+                  result = barcode.rawValue;
+
+                  // Instead of closing immediately, show result live
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Scanned: $result")),
+                  );
+                },
+              ),
+              // Overlay square
+              Center(
+                child: Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.redAccent,
+                      width: 3,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
 
-    // Step 3: Return scanned value
+    // Step 3: Return last scanned value (if any)
     return result;
   }
 }

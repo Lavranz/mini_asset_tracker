@@ -1,6 +1,7 @@
-// lib/location_service.dart
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class LocationService {
   static Future<bool> handleLocationPermission() async {
@@ -22,7 +23,7 @@ class LocationService {
     try {
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best, // 👈 use best accuracy
+          accuracy: LocationAccuracy.best,
           timeLimit: Duration(seconds: 10),
         ),
       );
@@ -30,6 +31,26 @@ class LocationService {
       return position;
     } catch (e) {
       debugPrint("Error getting location: $e");
+      return null;
+    }
+  }
+
+  static Future<String?> getSiteName(double latitude, double longitude) async {
+    try {
+      final url =
+          "http://202.60.10.144:7500/api/poc/get/location-by-coordinates?longitude=$longitude&latitude=$latitude";
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Adjust key name if API returns differently
+        return data['siteName'];
+      } else {
+        debugPrint("API error: ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("Error calling API: $e");
       return null;
     }
   }

@@ -34,6 +34,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   String _locationMessage = "Fetching location...";
+  String _scanMessage = "No scan yet";
 
   @override
   void initState() {
@@ -44,9 +45,13 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _loadLocation() async {
     Position? position = await LocationService.getCurrentLocation();
     if (position != null) {
+      String? siteName = await LocationService.getSiteName(
+        position.latitude,
+        position.longitude,
+      );
+
       setState(() {
-        _locationMessage =
-            "Latitude: ${position.latitude}, Longitude: ${position.longitude}";
+        _locationMessage = siteName ?? "APOLLO OJT OFFICE";
       });
     } else {
       setState(() {
@@ -55,16 +60,16 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> _scanAndTrack() async {
+  Future<void> _scanCode() async {
     final code = await BarcodeService.scanBarcode(context);
 
     if (code != null) {
       setState(() {
-        _locationMessage = "Scanned Value: $code";
+        _scanMessage = "Scanned Value: $code";
       });
     } else {
       setState(() {
-        _locationMessage = "Scan failed or cancelled";
+        _scanMessage = "Scan failed or cancelled";
       });
     }
   }
@@ -84,12 +89,16 @@ class _MyHomePageState extends State<MyHomePage> {
                 style: Theme.of(context).textTheme.titleMedium),
             Text(_locationMessage,
                 style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 20),
+            Text("Scan Result:",
+                style: Theme.of(context).textTheme.titleMedium),
+            Text(_scanMessage, style: Theme.of(context).textTheme.bodyLarge),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _scanAndTrack,
-        tooltip: 'Scan Barcode & Track',
+        onPressed: _scanCode,
+        tooltip: 'Scan Barcode/QR Code',
         child: const Icon(Icons.qr_code_scanner),
       ),
     );
