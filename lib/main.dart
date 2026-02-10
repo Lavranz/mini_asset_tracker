@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'location_service.dart';
+import 'barcode_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -54,6 +55,20 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> _scanAndTrack() async {
+    final code = await BarcodeService.scanBarcode(context);
+
+    if (code != null) {
+      setState(() {
+        _locationMessage = "Scanned Value: $code";
+      });
+    } else {
+      setState(() {
+        _locationMessage = "Scan failed or cancelled";
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,9 +88,9 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _loadLocation,
-        tooltip: 'Refresh Location',
-        child: const Icon(Icons.location_on),
+        onPressed: _scanAndTrack,
+        tooltip: 'Scan Barcode & Track',
+        child: const Icon(Icons.qr_code_scanner),
       ),
     );
   }
