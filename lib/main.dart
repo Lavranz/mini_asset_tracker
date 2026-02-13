@@ -36,12 +36,16 @@ class _MyHomePageState extends State<MyHomePage> {
   String _locationMessage = "Fetching location...";
   String _scanMessage = "No scan yet";
 
+  // Dropdown selected value
+  String? _selectedAction;
+
   @override
   void initState() {
     super.initState();
     _loadLocation();
   }
 
+  // Load location and site name
   Future<void> _loadLocation() async {
     Position? position = await LocationService.getCurrentLocation();
     if (position != null) {
@@ -93,6 +97,39 @@ class _MyHomePageState extends State<MyHomePage> {
             Text("Scan Result:",
                 style: Theme.of(context).textTheme.titleMedium),
             Text(_scanMessage, style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 30),
+
+            // Dropdown list
+            DropdownButton<String>(
+              hint: const Text("Select Action"),
+              value: _selectedAction,
+              items: const [
+                DropdownMenuItem(value: "RECEIVE", child: Text("RECEIVE")),
+                DropdownMenuItem(value: "SEND", child: Text("SEND")),
+                DropdownMenuItem(value: "DEPLOY", child: Text("DEPLOY")),
+                DropdownMenuItem(value: "PULL-OUT", child: Text("PULL-OUT")),
+                DropdownMenuItem(value: "DEFECTIVE", child: Text("DEFECTIVE")),
+                DropdownMenuItem(value: "FIXED", child: Text("FIXED")),
+                DropdownMenuItem(
+                    value: "DECOMMISSION", child: Text("DECOMMISSION")),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedAction = value;
+                });
+                // Print to console
+                debugPrint("Selected Action: $value");
+              },
+            ),
+
+            if (_selectedAction != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  "$_selectedAction",
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
           ],
         ),
       ),

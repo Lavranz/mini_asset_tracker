@@ -35,6 +35,7 @@ class LocationService {
     }
   }
 
+  // Call API to get site name based on coordinates
   static Future<String?> getSiteName(double latitude, double longitude) async {
     try {
       final url =
@@ -43,7 +44,7 @@ class LocationService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        // Adjust key name if API returns differently
+
         return data['siteName'];
       } else {
         debugPrint("API error: ${response.statusCode}");
