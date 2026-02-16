@@ -1,6 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// -------------------- 🌐 LOCATION SERVICE --------------------
+class LocationService {
+  static Future<bool> handleLocationPermission() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      final requestResult = await Geolocator.requestPermission();
+      if (requestResult == LocationPermission.deniedForever) {
+        return false;
+      }
+      return requestResult != LocationPermission.denied;
+    }
+    return permission != LocationPermission.denied;
+  }
+
+  static Future<Position?> getCurrentLocation() async {
+    bool hasPermission = await handleLocationPermission();
+    if (!hasPermission) return null;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      debugPrint("Position: $position");
+      return position;
+    } catch (e) {
+      debugPrint("Error getting location: $e");
+      return null;
+    }
+  }
+
+  // Dummy API call to get site name based on coordinates
+  static Future<String?> getSiteName(double latitude, double longitude) async {
+    try {
+      final url = "http://202.60.10.144:7500/api/poc/get/location-by-coordinates?longitude=124.66114625675772&latitude=8.47629726307542"; // 🔗 Replace with real API
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body)[0];
+        return data['siteName'];
+      } else {
+        debugPrint("API error: ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("Error calling API: $e");
+      return null;
+    }
+  }
+}
+// -------------------------------------------------------------
 
 void main() {
   runApp(const MyApp());
@@ -23,36 +79,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// -------------------- 📍 GEOLOCATION SECTION --------------------
-Future<bool> handleLocationPermission() async {
-  final permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    final requestResult = await Geolocator.requestPermission();
-    if (requestResult == LocationPermission.deniedForever) {
-      return false;
-    }
-    return requestResult != LocationPermission.denied;
-  }
-  return permission != LocationPermission.denied;
-}
-
-Future<Position?> getCurrentLocation() async {
-  bool hasPermission = await handleLocationPermission();
-  if (!hasPermission) return null;
-
-  try {
-    Position position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
-    debugPrint(position.toString());
-    return position;
-  } catch (e) {
-    debugPrint("Error getting location: $e");
-    return null;
-  }
-}
-// ---------------------------------------------------------------
-
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
   final String title;
@@ -63,6 +89,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   Position? _currentPosition;
+  String? _siteName;
   String? _scannedValue;
   String? _selectedAction;
 
@@ -83,7 +110,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _getLocation() async {
-    Position? position = await getCurrentLocation();
+    Position? position = await LocationService.getCurrentLocation();
     setState(() {
       _currentPosition = position;
     });
@@ -92,6 +119,14 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Location permission denied or unavailable')),
       );
+    } else {
+      String? site = await LocationService.getSiteName(
+        position.latitude,
+        position.longitude,
+      );
+      setState(() {
+        _siteName = site;
+      });
     }
   }
 
@@ -125,9 +160,9 @@ class _MyHomePageState extends State<MyHomePage> {
       subtitle: _currentPosition != null
           ? Column(
               children: [
-                const Text(
-                  "Appolo Office",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                Text(
+                  _siteName ?? "Fetching site name...",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 const SizedBox(height: 10),
                 Chip(
@@ -209,6 +244,7 @@ class _MyHomePageState extends State<MyHomePage> {
             onChanged: (String? newValue) {
               setState(() => _selectedAction = newValue);
               debugPrint("Selected: $newValue");
+              // You can also call your API here with siteName + action if needed
             },
           ),
           if (_selectedAction != null)
