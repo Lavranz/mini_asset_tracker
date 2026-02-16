@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'location_service.dart';
 import 'barcode_service.dart';
+import 'action_list.dart'; // new import
 
 void main() {
   runApp(const MyApp());
@@ -35,9 +36,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _locationMessage = "Fetching location...";
   String _scanMessage = "No scan yet";
-
-  // Dropdown selected value
-  String? _selectedAction;
+  String? _selectedAction; // receives value from ActionList
 
   @override
   void initState() {
@@ -45,7 +44,6 @@ class _MyHomePageState extends State<MyHomePage> {
     _loadLocation();
   }
 
-  // Load location and site name
   Future<void> _loadLocation() async {
     Position? position = await LocationService.getCurrentLocation();
     if (position != null) {
@@ -55,7 +53,7 @@ class _MyHomePageState extends State<MyHomePage> {
       );
 
       setState(() {
-        _locationMessage = siteName ?? "APOLLO OJT OFFICE";
+        _locationMessage = siteName ?? "Unknown Location";
       });
     } else {
       setState(() {
@@ -99,37 +97,14 @@ class _MyHomePageState extends State<MyHomePage> {
             Text(_scanMessage, style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 30),
 
-            // Dropdown list
-            DropdownButton<String>(
-              hint: const Text("Select Action"),
-              value: _selectedAction,
-              items: const [
-                DropdownMenuItem(value: "RECEIVE", child: Text("RECEIVE")),
-                DropdownMenuItem(value: "SEND", child: Text("SEND")),
-                DropdownMenuItem(value: "DEPLOY", child: Text("DEPLOY")),
-                DropdownMenuItem(value: "PULL-OUT", child: Text("PULL-OUT")),
-                DropdownMenuItem(value: "DEFECTIVE", child: Text("DEFECTIVE")),
-                DropdownMenuItem(value: "FIXED", child: Text("FIXED")),
-                DropdownMenuItem(
-                    value: "DECOMMISSION", child: Text("DECOMMISSION")),
-              ],
-              onChanged: (value) {
+            // Use ActionList widget
+            ActionList(
+              onSelected: (value) {
                 setState(() {
                   _selectedAction = value;
                 });
-                // Print to console
-                debugPrint("Selected Action: $value");
               },
             ),
-
-            if (_selectedAction != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(
-                  "$_selectedAction",
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-              ),
           ],
         ),
       ),
