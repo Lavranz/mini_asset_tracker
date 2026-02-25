@@ -4,8 +4,9 @@ import 'dart:convert';
 
 class ActionList extends StatefulWidget {
   final Function(String) onSelected; // callback to send value back to parent
+  final String? selected;
 
-  const ActionList({super.key, required this.onSelected});
+  const ActionList({super.key, required this.onSelected, this.selected});
 
   @override
   State<ActionList> createState() => _ActionListState();
@@ -17,7 +18,7 @@ class _ActionListState extends State<ActionList> {
   List<dynamic> actions = []; // will hold actions from API
   Future<void> _callApi() async {
     try {
-      const url = "http://202.60.10.144:7500/api/poc/get/actions-list";
+      const url = "http://202.60.10.144:7500/api/astra/get/actions-list";
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {

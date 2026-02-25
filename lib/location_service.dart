@@ -39,7 +39,7 @@ class LocationService {
   static Future<String?> getSiteName(double latitude, double longitude) async {
     try {
       final url =
-          "http://202.60.10.144:7500/api/poc/get/location-by-coordinates?longitude=$longitude&latitude=$latitude";
+          "http://202.60.10.144:7500/api/astra/get/location-by-coordinates?longitude=$longitude&latitude=$latitude";
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {

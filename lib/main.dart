@@ -76,6 +76,16 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> _refreshAll() async {
+    setState(() {
+      _locationMessage = "Fetching location...";
+      _scanMessage = "No scan yet";
+      _selectedAction = null;
+    });
+
+    await _loadLocation();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,6 +105,13 @@ class _MyHomePageState extends State<MyHomePage> {
             Text("Scan Result:",
                 style: Theme.of(context).textTheme.titleMedium),
             Text(_scanMessage, style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed: _refreshAll,
+              icon: const Icon(Icons.refresh),
+              label: const Text("Refresh"),
+            ),
             const SizedBox(height: 30),
 
             // Use ActionList widget
