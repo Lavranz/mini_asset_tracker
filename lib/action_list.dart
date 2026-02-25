@@ -26,6 +26,7 @@ class _ActionListState extends State<ActionList> {
         actions = data.map((item) => item['name']).toList();
         debugPrint("Available Actions from API: $actions");
         debugPrint("API Response: $data");
+        _selectedAction = null;
       } else {
         debugPrint("API error: ${response.statusCode}");
       }
