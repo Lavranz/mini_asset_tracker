@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'location_service.dart';
 import 'barcode_service.dart';
-import 'action_list.dart'; // new import
+import 'action_list.dart';
+import 'devices_list.dart'; // ✅ contains Device model + DeviceDropdown widget
 
 void main() {
   runApp(const MyApp());
@@ -18,7 +19,8 @@ class MyApp extends StatelessWidget {
       title: 'Asset Tracker',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color.fromARGB(255, 218, 59, 59)),
+          seedColor: const Color.fromARGB(255, 218, 59, 59),
+        ),
         useMaterial3: true,
       ),
       home: const MyHomePage(title: 'Asset Tracker'),
@@ -38,6 +40,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String _locationMessage = "Fetching location...";
   String _scanMessage = "No scan yet";
   String? _selectedAction; // receives value from ActionList
+  Device? _selectedDevice; // ✅ receives value from DeviceDropdown
 
   @override
   void initState() {
@@ -82,6 +85,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _locationMessage = "Fetching location...";
       _scanMessage = "No scan yet";
       _selectedAction = null;
+      _selectedDevice = null;
     });
 
     await _loadLocation();
@@ -145,6 +149,34 @@ class _MyHomePageState extends State<MyHomePage> {
                         });
                       },
                     ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Devices Dropdown Card
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Select Device",
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    DeviceDropdown(
+                      onSelected: (device) {
+                        setState(() {
+                          _selectedDevice = device;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_selectedDevice == null
+                        ? "No device selected"
+                        : "Selected: ${_selectedDevice!.serialNumber} - ${_selectedDevice!.productName}"),
                   ],
                 ),
               ),
