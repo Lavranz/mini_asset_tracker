@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'location_service.dart';
 import 'barcode_service.dart';
 import 'action_list.dart';
-import 'devices_list.dart'; // ✅ contains Device model + DeviceDropdown widget
+import 'devices_list.dart'; // contains Device model + DeviceDropdown widget
 
 void main() {
   runApp(const MyApp());
@@ -39,8 +39,11 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _locationMessage = "Fetching location...";
   String _scanMessage = "No scan yet";
-  String? _selectedAction; // receives value from ActionList
-  Device? _selectedDevice; // ✅ receives value from DeviceDropdown
+  String? _selectedAction;
+  Device? _selectedDevice;
+
+  // 👇 Add this counter to force rebuild of DeviceDropdown
+  int _dropdownKey = 0;
 
   @override
   void initState() {
@@ -55,7 +58,6 @@ class _MyHomePageState extends State<MyHomePage> {
         position.latitude,
         position.longitude,
       );
-
       setState(() {
         _locationMessage = siteName ?? "Unknown Location";
       });
@@ -68,16 +70,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _scanCode() async {
     final code = await BarcodeService.scanBarcode(context);
-
-    if (code != null) {
-      setState(() {
-        _scanMessage = "Scanned Value: $code";
-      });
-    } else {
-      setState(() {
-        _scanMessage = "Scan failed or cancelled";
-      });
-    }
+    setState(() {
+      _scanMessage =
+          code != null ? "☑ Verified: $code" : "❌ Scan failed or cancelled";
+    });
   }
 
   Future<void> _refreshAll() async {
@@ -86,6 +82,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _scanMessage = "No scan yet";
       _selectedAction = null;
       _selectedDevice = null;
+      _dropdownKey++; // 👈 force rebuild of DeviceDropdown
     });
 
     await _loadLocation();
@@ -167,6 +164,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     DeviceDropdown(
+                      key: ValueKey(_dropdownKey), // 👈 forces rebuild
                       onSelected: (device) {
                         setState(() {
                           _selectedDevice = device;

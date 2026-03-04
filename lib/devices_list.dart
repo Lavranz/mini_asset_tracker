@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:dropdown_search/dropdown_search.dart';
+import 'barcode_service.dart'; // import your scanner service
 
 // Data model
 class Device {
@@ -17,18 +19,10 @@ class Device {
   }
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Device &&
-          runtimeType == other.runtimeType &&
-          serialNumber == other.serialNumber &&
-          productName == other.productName;
-
-  @override
-  int get hashCode => serialNumber.hashCode ^ productName.hashCode;
+  String toString() => "$serialNumber - $productName";
 }
 
-// Dropdown widget
+// Searchable Dropdown widget
 class DeviceDropdown extends StatefulWidget {
   final Function(Device?) onSelected;
 
@@ -39,127 +33,79 @@ class DeviceDropdown extends StatefulWidget {
 }
 
 class _DeviceDropdownState extends State<DeviceDropdown> {
-  List<Device> _devices = [];
-  Device? _selectedDevice;
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchDevices(); // load all devices initially
-  }
-
-  Future<void> _fetchDevices() async {
+  Future<List<Device>> _fetchDevices([String? query]) async {
     try {
-      const url = "http://202.60.10.144:7500/api/astra/get/devices";
+      final url = (query == null || query.isEmpty)
+          ? "http://202.60.10.144:7500/api/astra/get/devices"
+          : "http://202.60.10.144:7500/api/astra/get/devices?query=$query";
+
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
         final List<dynamic> data = body['devices'] ?? [];
-
-        setState(() {
-          _devices = data.map((e) => Device.fromJson(e)).toList();
-        });
-
-        debugPrint("Available Devices from API: $_devices");
+        return data.map((e) => Device.fromJson(e)).toList();
       } else {
         debugPrint("API error: ${response.statusCode}");
+        return [];
       }
     } catch (e) {
       debugPrint("Error calling API: $e");
+      return [];
     }
-  }
-
-  Future<void> _searchDevices() async {
-    final query = _searchController.text.trim();
-    if (query.isEmpty) return;
-
-    try {
-      final url =
-          "http://202.60.10.144:7500/api/astra/get/devices?query=$query";
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final body = json.decode(response.body);
-        final List<dynamic> data = body['devices'] ?? [];
-
-        setState(() {
-          _devices = data.map((e) => Device.fromJson(e)).toList();
-          if (_selectedDevice != null && !_devices.contains(_selectedDevice)) {
-            _selectedDevice = null;
-          }
-        });
-
-        debugPrint("Search results: $_devices");
-      } else {
-        debugPrint("API error: ${response.statusCode}");
-      }
-    } catch (e) {
-      debugPrint("Error searching devices: $e");
-    }
-  }
-
-  void _clearSearch() {
-    _searchController.clear();
-    _fetchDevices(); // reload all devices
-    setState(() {
-      _selectedDevice = null;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  labelText: "Search by Serial or Product",
-                ),
+    return DropdownSearch<Device>(
+      asyncItems: (String? filter) => _fetchDevices(filter),
+      itemAsString: (Device d) => d.toString(),
+      onChanged: (Device? selected) async {
+        if (selected == null) return;
+
+        // Step 1: Launch scanner
+        final scannedValue = await BarcodeService.scanBarcode(context);
+
+        // Step 2: Handle no scan or denied permission
+        if (scannedValue == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text("No barcode scanned or permission denied")),
+          );
+          return;
+        }
+
+        // Step 3: Normalize and split scanned string
+        final normalizedScan = scannedValue.trim();
+        final parts = normalizedScan
+            .split(RegExp(r'[,\s]+')); // split by comma or whitespace
+
+        // Step 4: Verify match
+        if (parts.contains(selected.serialNumber)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("✅ Verified: ${selected.serialNumber}")),
+          );
+          widget.onSelected(selected);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "❌ Mismatch! Expected ${selected.serialNumber}, got $scannedValue",
               ),
+              backgroundColor: Colors.redAccent,
             ),
-            IconButton(
-              icon: const Icon(Icons.search, color: Colors.deepPurple),
-              onPressed: _searchDevices, // ✅ server-side search
-            ),
-            IconButton(
-              icon: const Icon(Icons.clear, color: Colors.red),
-              onPressed: _clearSearch,
-            ),
-          ],
+          );
+        }
+      },
+      dropdownDecoratorProps: const DropDownDecoratorProps(
+        dropdownSearchDecoration: InputDecoration(
+          labelText: "Search & Select Device",
+          border: OutlineInputBorder(),
         ),
-        const SizedBox(height: 10),
-        DropdownButton<Device>(
-          isExpanded: true,
-          value: _selectedDevice,
-          hint: const Text("Select Device"),
-          items: _devices.isEmpty
-              ? [
-                  const DropdownMenuItem<Device>(
-                    value: null,
-                    child: Text("No devices found"),
-                  )
-                ]
-              : _devices.map((device) {
-                  return DropdownMenuItem<Device>(
-                    value: device,
-                    child:
-                        Text("${device.serialNumber} - ${device.productName}"),
-                  );
-                }).toList(),
-          onChanged: (Device? newValue) {
-            setState(() {
-              _selectedDevice = newValue;
-            });
-            widget.onSelected(newValue);
-          },
-        ),
-      ],
+      ),
+      popupProps: const PopupProps.menu(
+        showSearchBox: true, // ✅ keeps the search box inside dropdown
+      ),
     );
   }
 }
