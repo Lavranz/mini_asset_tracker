@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'location_service.dart';
 import 'barcode_service.dart';
 import 'action_list.dart';
-import 'devices_list.dart'; // <-- new import
+import 'devices_list.dart'; // contains Device model + DeviceDropdown widget
 
 void main() {
   runApp(const MyApp());
@@ -18,7 +18,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Asset Tracker',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 218, 59, 59),
+        ),
         useMaterial3: true,
       ),
       home: const MyHomePage(title: 'Asset Tracker'),
@@ -37,8 +39,10 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _locationMessage = "Fetching location...";
   String _scanMessage = "No scan yet";
-  String? _selectedAction; // receives value from ActionList
-  String? _selectedDevice; // receives value from DevicesList
+  String? _selectedAction;
+  Device? _selectedDevice;
+
+  int _dropdownKey = 0; // 👈 force rebuild of DeviceDropdown
 
   @override
   void initState() {
@@ -53,7 +57,6 @@ class _MyHomePageState extends State<MyHomePage> {
         position.latitude,
         position.longitude,
       );
-
       setState(() {
         _locationMessage = siteName ?? "Unknown Location";
       });
@@ -66,16 +69,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _scanCode() async {
     final code = await BarcodeService.scanBarcode(context);
-
-    if (code != null) {
-      setState(() {
-        _scanMessage = "Scanned Value: $code";
-      });
-    } else {
-      setState(() {
-        _scanMessage = "Scan failed or cancelled";
-      });
-    }
+    setState(() {
+      _scanMessage = code != null
+          ? "☑ Verified: $code"
+          : "❌ Scan failed or cancelled";
+    });
   }
 
   Future<void> _refreshAll() async {
@@ -84,6 +82,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _scanMessage = "No scan yet";
       _selectedAction = null;
       _selectedDevice = null;
+      _dropdownKey++; // 👈 force rebuild of DeviceDropdown
     });
 
     await _loadLocation();
@@ -94,144 +93,125 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
-        backgroundColor: const Color.fromARGB(255, 193, 164, 245),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                shape: const CircleBorder(),
-                padding: const EdgeInsets.all(12),
-                backgroundColor: Colors.deepPurple.shade100,
-                elevation: 0,
-              ),
-              onPressed: _refreshAll,
-              child: const Icon(Icons.refresh,
-                  color: Colors.deepPurple, size: 24),
-            ),
-          ),
-        ],
+        backgroundColor: const Color(0xFF9B7EBD), // 👈 updated color
       ),
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
+        child: ListView(
           children: [
-            // Box 1: Current Location
-            _buildCard(
-              context,
-              icon: Icons.location_on,
-              title: "Current Location",
-              content: _locationMessage,
+            // Refresh Button moved to top-right
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _refreshAll,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Refresh All"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
 
-            // Box 2: Scan Result
-            _buildCard(
-              context,
-              icon: Icons.qr_code_scanner,
-              title: "Scan Result",
-              content: _scanMessage,
-              trailingButton: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  shape: const CircleBorder(),
-                  padding: const EdgeInsets.all(16),
-                  backgroundColor: Colors.deepPurple.shade100,
-                ),
-                onPressed: _scanCode,
-                child: const Icon(Icons.qr_code_scanner,
-                    color: Colors.deepPurple, size: 28),
+            // Location Card
+            Card(
+              elevation: 4,
+              color: const Color(0xFFFFE1E0), // 👈 new background color
+              child: ListTile(
+                leading: const Icon(Icons.location_on, color: Colors.deepPurple),
+                title: const Text("Current Location"),
+                subtitle: Text(_locationMessage),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // Box 3: Select Action
-            _buildCard(
-              context,
-              icon: Icons.playlist_add_check,
-              title: "Select Action",
-              contentWidget: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 200,
-                    child: ActionList(
+            // Barcode Card with scan button on the right
+            Card(
+              elevation: 4,
+              color: const Color(0xFFFFE1E0), // 👈 new background color
+              child: ListTile(
+                leading: const Icon(Icons.qr_code_scanner, color: Colors.deepPurple),
+                title: const Text("Scan Result"),
+                subtitle: Text(_scanMessage),
+                trailing: IconButton(
+                  icon: const Icon(Icons.qr_code_scanner, color: Colors.deepPurple),
+                  tooltip: 'Scan Barcode/QR Code',
+                  onPressed: _scanCode,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Action Dropdown Card with icon
+            Card(
+              elevation: 4,
+              color: const Color(0xFFFFE1E0), // 👈 new background color
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.playlist_add_check, color: Colors.deepPurple),
+                        SizedBox(width: 8),
+                        Text("Select Action",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ActionList(
+                      selected: _selectedAction,
                       onSelected: (value) {
                         setState(() {
                           _selectedAction = value;
                         });
                       },
                     ),
-                  ),
-                  if (_selectedAction != null) ...[
-                    const SizedBox(height: 12),
-                    Text("Chosen: $_selectedAction",
-                        style: Theme.of(context).textTheme.bodyMedium),
                   ],
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Box 4: Devices Dropdown
-            _buildCard(
-              context,
-              icon: Icons.devices,
-              title: "Select Device",
-              contentWidget: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DevicesList(
-                    onSelected: (device) {
-                      setState(() {
-                        _selectedDevice = device;
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Selected: ${device.toString()}")),
-                      );
-                    },
-                  ),
-                  if (_selectedDevice != null) ...[
-                    const SizedBox(height: 12),
-                    Text("Chosen: ${_selectedDevice.toString()}",
-                        style: Theme.of(context).textTheme.bodyMedium),
+            // Devices Dropdown Card with icon
+            Card(
+              elevation: 4,
+              color: const Color(0xFFFFE1E0), // 👈 new background color
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.devices, color: Colors.deepPurple),
+                        SizedBox(width: 8),
+                        Text("Select Device",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    DeviceDropdown(
+                      key: ValueKey(_dropdownKey), // 👈 forces rebuild
+                      onSelected: (device) {
+                        setState(() {
+                          _selectedDevice = device;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_selectedDevice == null
+                        ? "No device selected"
+                        : "Selected: ${_selectedDevice!.serialNumber} - ${_selectedDevice!.productName}"),
                   ],
-                ],
+                ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCard(BuildContext context,
-      {required IconData icon,
-      required String title,
-      String? content,
-      Widget? contentWidget,
-      Widget? trailingButton}) {
-    return Card(
-      color: const Color(0xFFFFF1CB),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 28, color: Colors.deepPurple),
-                const SizedBox(width: 8),
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                if (trailingButton != null) trailingButton,
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (content != null)
-              Text(content, style: Theme.of(context).textTheme.bodyLarge),
-            if (contentWidget != null) contentWidget,
           ],
         ),
       ),

@@ -4,8 +4,9 @@ import 'dart:convert';
 
 class ActionList extends StatefulWidget {
   final Function(String) onSelected; // callback to send value back to parent
+  final String? selected;
 
-  const ActionList({super.key, required this.onSelected});
+  const ActionList({super.key, required this.onSelected, this.selected});
 
   @override
   State<ActionList> createState() => _ActionListState();

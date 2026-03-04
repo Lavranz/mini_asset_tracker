@@ -1,147 +1,111 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dropdown_search/dropdown_search.dart';
+import 'barcode_service.dart'; // import your scanner service
 
-class DevicesList extends StatefulWidget {
-  final Function(String) onSelected; // callback to send value back to parent
+// Data model
+class Device {
+  final String serialNumber;
+  final String productName;
 
-  const DevicesList({super.key, required this.onSelected});
+  Device({required this.serialNumber, required this.productName});
 
-  @override
-  State<DevicesList> createState() => _DevicesListState();
-}
-
-class _DevicesListState extends State<DevicesList> {
-  String? _selectedDevice;
-  List<String> devices = [];
-  List<String> filteredDevices = [];
-  bool _isLoading = false;
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _callApi(); // fetch devices once at startup
+  factory Device.fromJson(Map<String, dynamic> json) {
+    return Device(
+      serialNumber: json['serialNumber'] ?? '',
+      productName: json['productName'] ?? '',
+    );
   }
 
-  Future<void> _callApi() async {
-    setState(() {
-      _isLoading = true;
-    });
+  @override
+  String toString() => "$serialNumber - $productName";
+}
 
+// Searchable Dropdown widget
+class DeviceDropdown extends StatefulWidget {
+  final Function(Device?) onSelected;
+
+  const DeviceDropdown({super.key, required this.onSelected});
+
+  @override
+  State<DeviceDropdown> createState() => _DeviceDropdownState();
+}
+
+class _DeviceDropdownState extends State<DeviceDropdown> {
+  Future<List<Device>> _fetchDevices([String? query]) async {
     try {
-      const url = "http://202.60.10.144:7500/api/astra/get/devices"; // dummy link
+      final url = (query == null || query.isEmpty)
+          ? "http://202.60.10.144:7500/api/astra/get/devices"
+          : "http://202.60.10.144:7500/api/astra/get/devices?query=$query";
+
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        List<String> fetchedDevices = [];
-        if (data is Map<String, dynamic> && data.containsKey("devices")) {
-          fetchedDevices = (data["devices"] as List)
-              .map((item) => "${item['serialNumber']} - ${item['productName']}")
-              .toList();
-        } else if (data is List) {
-          fetchedDevices = data
-              .map((item) => "${item['serialNumber']} - ${item['productName']}")
-              .toList()
-              .cast<String>();
-        }
-
-        setState(() {
-          devices = fetchedDevices;
-          filteredDevices = List.from(fetchedDevices);
-        });
+        final body = json.decode(response.body);
+        final List<dynamic> data = body['devices'] ?? [];
+        return data.map((e) => Device.fromJson(e)).toList();
       } else {
         debugPrint("API error: ${response.statusCode}");
+        return [];
       }
     } catch (e) {
       debugPrint("Error calling API: $e");
+      return [];
     }
-
-    setState(() {
-      _isLoading = false;
-      _selectedDevice = null;
-    });
-  }
-
-  void _filterDevices(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        filteredDevices = List.from(devices);
-      } else {
-        filteredDevices = devices
-            .where((device) =>
-                device.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
-    });
-  }
-
-  void _clearSearch() {
-    _searchController.clear();
-    _filterDevices("");
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Search bar + refresh
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: "Search by Serial or Product",
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: _clearSearch,
-                  ),
-                  border: const OutlineInputBorder(),
-                ),
-                onChanged: _filterDevices,
+    return DropdownSearch<Device>(
+      asyncItems: (String? filter) => _fetchDevices(filter),
+      itemAsString: (Device d) => d.toString(),
+      onChanged: (Device? selected) async {
+        if (selected == null) return;
+
+        // Step 1: Launch scanner
+        final scannedValue = await BarcodeService.scanBarcode(context);
+
+        // Step 2: Handle no scan or denied permission
+        if (scannedValue == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text("No barcode scanned or permission denied")),
+          );
+          return;
+        }
+
+        // Step 3: Normalize and split scanned string
+        final normalizedScan = scannedValue.trim();
+        final parts = normalizedScan
+            .split(RegExp(r'[,\s]+')); // split by comma or whitespace
+
+        // Step 4: Verify match
+        if (parts.contains(selected.serialNumber)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("✅ Verified: ${selected.serialNumber}")),
+          );
+          widget.onSelected(selected);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "❌ Mismatch! Expected ${selected.serialNumber}, got $scannedValue",
               ),
+              backgroundColor: Colors.redAccent,
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.deepPurple),
-              tooltip: "Refresh Devices",
-              onPressed: _callApi,
-            ),
-          ],
+          );
+        }
+      },
+      dropdownDecoratorProps: const DropDownDecoratorProps(
+        dropdownSearchDecoration: InputDecoration(
+          labelText: "Search & Select Device",
+          border: OutlineInputBorder(),
         ),
-        const SizedBox(height: 12),
-
-        // Dropdown
-        if (_isLoading)
-          const CircularProgressIndicator()
-        else
-          DropdownButton<String>(
-            hint: const Text("Select Device"),
-            value: _selectedDevice,
-            items: filteredDevices.map((device) {
-              return DropdownMenuItem(
-                value: device,
-                child: Text(device),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedDevice = value;
-              });
-              widget.onSelected(value!); // send value back to parent
-              debugPrint("Selected Device: $value");
-            },
-          ),
-
-        if (_selectedDevice != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text("Chosen: $_selectedDevice"),
-          ),
-      ],
+      ),
+      popupProps: const PopupProps.menu(
+        showSearchBox: true, // ✅ keeps the search box inside dropdown
+      ),
     );
   }
 }
