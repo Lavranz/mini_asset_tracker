@@ -33,6 +33,8 @@ class DeviceDropdown extends StatefulWidget {
 }
 
 class _DeviceDropdownState extends State<DeviceDropdown> {
+  final List<Device> _verifiedDevices = [];
+
   Future<List<Device>> _fetchDevices([String? query]) async {
     try {
       final url = (query == null || query.isEmpty)
@@ -44,7 +46,13 @@ class _DeviceDropdownState extends State<DeviceDropdown> {
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
         final List<dynamic> data = body['devices'] ?? [];
-        return data.map((e) => Device.fromJson(e)).toList();
+        final devices = data.map((e) => Device.fromJson(e)).toList();
+
+        // Exclude already verified devices
+        return devices
+            .where((d) =>
+                !_verifiedDevices.any((v) => v.serialNumber == d.serialNumber))
+            .toList();
       } else {
         debugPrint("API error: ${response.statusCode}");
         return [];
@@ -57,54 +65,85 @@ class _DeviceDropdownState extends State<DeviceDropdown> {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownSearch<Device>(
-      asyncItems: (String? filter) => _fetchDevices(filter),
-      itemAsString: (Device d) => d.toString(),
-      onChanged: (Device? selected) async {
-        if (selected == null) return;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownSearch<Device>(
+            asyncItems: (String? filter) => _fetchDevices(filter),
+            itemAsString: (Device d) => d.toString(),
+            onChanged: (Device? selected) async {
+              if (selected == null) return;
 
-        // Step 1: Launch scanner
-        final scannedValue = await BarcodeService.scanBarcode(context);
+              final scannedValue = await BarcodeService.scanBarcode(context);
 
-        // Step 2: Handle no scan or denied permission
-        if (scannedValue == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text("No barcode scanned or permission denied")),
-          );
-          return;
-        }
+              if (scannedValue == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text("No barcode scanned or permission denied")),
+                );
+                return;
+              }
 
-        // Step 3: Normalize and split scanned string
-        final normalizedScan = scannedValue.trim();
-        final parts = normalizedScan
-            .split(RegExp(r'[,\s]+')); // split by comma or whitespace
+              final normalizedScan = scannedValue.trim();
+              final parts = normalizedScan.split(RegExp(r'[,\s]+'));
 
-        // Step 4: Verify match
-        if (parts.contains(selected.serialNumber)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("✅ Verified: ${selected.serialNumber}")),
-          );
-          widget.onSelected(selected);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "❌ Mismatch! Expected ${selected.serialNumber}, got $scannedValue",
+              if (parts.contains(selected.serialNumber)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text("✅ Verified: ${selected.serialNumber}")),
+                );
+
+                setState(() {
+                  _verifiedDevices.add(selected);
+                });
+
+                widget.onSelected(selected);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "❌ Mismatch! Expected ${selected.serialNumber}, got $scannedValue",
+                    ),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
+            },
+            dropdownDecoratorProps: const DropDownDecoratorProps(
+              dropdownSearchDecoration: InputDecoration(
+                labelText: "Search & Select Device",
+                border: OutlineInputBorder(),
               ),
-              backgroundColor: Colors.redAccent,
             ),
-          );
-        }
-      },
-      dropdownDecoratorProps: const DropDownDecoratorProps(
-        dropdownSearchDecoration: InputDecoration(
-          labelText: "Search & Select Device",
-          border: OutlineInputBorder(),
-        ),
-      ),
-      popupProps: const PopupProps.menu(
-        showSearchBox: true, // ✅ keeps the search box inside dropdown
+            popupProps: const PopupProps.menu(
+              showSearchBox: true,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          if (_verifiedDevices.isNotEmpty)
+            const Text(
+              "Verified Devices:",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+
+          // ✅ Shrink-wrapped list inside scroll view
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _verifiedDevices.length,
+            itemBuilder: (context, index) {
+              final device = _verifiedDevices[index];
+              return ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: Text(device.productName),
+                subtitle: Text("SN: ${device.serialNumber}"),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
