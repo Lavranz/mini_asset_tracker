@@ -129,7 +129,7 @@ class _DeviceDropdownState extends State<DeviceDropdown> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
 
-          // ✅ Shrink-wrapped list inside scroll view
+          // ✅ Shrink-wrapped list inside scroll view with delete button
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -140,6 +140,22 @@ class _DeviceDropdownState extends State<DeviceDropdown> {
                 leading: const Icon(Icons.check_circle, color: Colors.green),
                 title: Text(device.productName),
                 subtitle: Text("SN: ${device.serialNumber}"),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.redAccent),
+                  onPressed: () {
+                    setState(() {
+                      _verifiedDevices.removeAt(index);
+                    });
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          "Removed ${device.serialNumber}, now available again in dropdown",
+                        ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           ),
