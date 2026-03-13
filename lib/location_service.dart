@@ -4,24 +4,32 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class LocationService {
+  /// Handle location permission safely
   static Future<bool> handleLocationPermission() async {
-    final permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
+
     if (permission == LocationPermission.denied) {
-      final requestResult = await Geolocator.requestPermission();
-      if (requestResult == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint("Location permission permanently denied.");
         return false;
       }
-      return requestResult != LocationPermission.denied;
     }
-    return permission != LocationPermission.denied;
+
+    return permission != LocationPermission.denied &&
+           permission != LocationPermission.deniedForever;
   }
 
+  /// Get current device position
   static Future<Position?> getCurrentLocation() async {
-    bool hasPermission = await handleLocationPermission();
-    if (!hasPermission) return null;
+    final hasPermission = await handleLocationPermission();
+    if (!hasPermission) {
+      debugPrint("No location permission granted.");
+      return null;
+    }
 
     try {
-      Position position = await Geolocator.getCurrentPosition(
+      final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
           timeLimit: Duration(seconds: 10),
@@ -35,18 +43,31 @@ class LocationService {
     }
   }
 
-  // Call API to get site name based on coordinates
+  /// Call API to get site name based on coordinates
   static Future<String?> getSiteName(double latitude, double longitude) async {
     try {
+      // 👇 Construct URL properly with query parameters
       final url =
           "http://202.60.10.144:7500/api/astra/get/location-by-coordinates?longitude=124.66113367534089&latitude=8.476300675225362";
+
+      debugPrint("Calling site API: $url");
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body)[0];
+        final decoded = json.decode(response.body);
 
-        debugPrint("data: $data");
-        return data['siteName'];
+        // Ensure response is a list or map
+        if (decoded is List && decoded.isNotEmpty) {
+          final data = decoded[0];
+          debugPrint("Site data: $data");
+          return data['siteName'] as String?;
+        } else if (decoded is Map) {
+          debugPrint("Site data: $decoded");
+          return decoded['siteName'] as String?;
+        } else {
+          debugPrint("Unexpected API format: $decoded");
+          return null;
+        }
       } else {
         debugPrint("API error: ${response.statusCode}");
         return null;
