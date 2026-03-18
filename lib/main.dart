@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_client.dart';
+import 'login_page.dart';
 import 'package:geolocator/geolocator.dart';
 import 'location_service.dart';
 import 'barcode_service.dart';
 import 'action_list.dart';
 import 'devices_list.dart'; // contains Device model + DeviceDropdown widget
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.init(); // Initialize Supabase
   runApp(const MyApp());
 }
 
@@ -23,7 +28,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Asset Tracker'),
+      home: const LoginPage(), // 👈 Start at LoginPage
     );
   }
 }
@@ -41,9 +46,8 @@ class _MyHomePageState extends State<MyHomePage> {
   String _scanMessage = "No scan yet";
   String? _selectedAction;
   Device? _selectedDevice;
-
-  // 👇 Add this counter to force rebuild of DeviceDropdown
-  int _dropdownKey = 0;
+  int _dropdownKey = 0; // force rebuild of DeviceDropdown
+  List<dynamic> _devices = []; // Supabase devices list
 
   @override
   void initState() {
@@ -82,10 +86,24 @@ class _MyHomePageState extends State<MyHomePage> {
       _scanMessage = "No scan yet";
       _selectedAction = null;
       _selectedDevice = null;
-      _dropdownKey++; // 👈 force rebuild of DeviceDropdown
+      _dropdownKey++;
     });
 
     await _loadLocation();
+
+    try {
+      // Supabase query (new API style)
+      final List<dynamic> response =
+          await SupabaseConfig.client.from('devices').select();
+
+      setState(() {
+        _devices = response;
+      });
+
+      print("Devices fetched: $_devices");
+    } catch (e) {
+      print("Supabase query failed: $e");
+    }
   }
 
   @override
@@ -94,12 +112,22 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
         backgroundColor: Colors.deepPurple,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
-            // Location Card
             Card(
               elevation: 4,
               child: ListTile(
@@ -110,8 +138,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // Barcode Card
             Card(
               elevation: 4,
               child: ListTile(
@@ -126,8 +152,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // Action Dropdown Card
             Card(
               elevation: 4,
               child: Padding(
@@ -151,8 +175,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Devices Dropdown Card
             Card(
               elevation: 4,
               child: Padding(
@@ -164,7 +186,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     DeviceDropdown(
-                      key: ValueKey(_dropdownKey), // 👈 forces rebuild
+                      key: ValueKey(_dropdownKey),
                       onSelected: (device) {
                         setState(() {
                           _selectedDevice = device;
@@ -180,8 +202,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Refresh Button
             ElevatedButton.icon(
               onPressed: _refreshAll,
               icon: const Icon(Icons.refresh),
