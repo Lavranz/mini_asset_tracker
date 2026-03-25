@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'supabase_client.dart'; // your SupabaseConfig
+import 'supabase_client.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -16,6 +16,7 @@ class _SignupPageState extends State<SignupPage> {
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -24,11 +25,12 @@ class _SignupPageState extends State<SignupPage> {
       body: Center(
         child: Card(
           elevation: 8,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           margin: const EdgeInsets.symmetric(horizontal: 24),
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -41,8 +43,11 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // EMAIL
                 TextField(
                   controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: "Email",
                     border: OutlineInputBorder(
@@ -50,7 +55,10 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
+
+                // PASSWORD
                 TextField(
                   controller: passwordController,
                   obscureText: _obscurePassword,
@@ -73,7 +81,10 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
+
+                // CONFIRM PASSWORD
                 TextField(
                   controller: confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
@@ -96,8 +107,12 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+
+                const SizedBox(height: 24),
+
+                // SIGN UP BUTTON
                 ElevatedButton(
+                  onPressed: _isLoading ? null : _signUp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepPurple,
                     foregroundColor: Colors.white,
@@ -106,23 +121,15 @@ class _SignupPageState extends State<SignupPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: () {
-                    if (passwordController.text !=
-                        confirmPasswordController.text) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Passwords do not match")),
-                      );
-                      return;
-                    }
-                    Navigator.pop(context); // back to LoginPage
-                  },
-                  child: const Text("Create Account"),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Create Account"),
                 ),
+
                 const SizedBox(height: 12),
+
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // back to LoginPage
-                  },
+                  onPressed: () => Navigator.pop(context),
                   child: const Text("Already have an account? Back to Login"),
                 ),
               ],
@@ -130,6 +137,48 @@ class _SignupPageState extends State<SignupPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _signUp() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+    final confirmPassword = confirmPasswordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage("Please fill in all fields");
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showMessage("Passwords do not match");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await SupabaseConfig.client.auth.signUp(
+        email: email,
+        password: password,
+      );
+
+      if (result.user != null && result.user!.emailConfirmedAt == null) {
+        _showMessage(
+          "Account created! Check your Gmail to verify your email.",
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      _showMessage("Signup failed: $e");
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 }
